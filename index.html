@@ -1,260 +1,271 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Smart Controller</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aquarium Controller — Cloud Dashboard</title>
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f2f2f2;
-  padding: 20px;
-}
+  :root{
+    --bg:#f2f2f2;
+    --card:#ffffff;
+    --muted:#666;
+    --primary:#6b7280;
+    --accent:#4b5563;
+    --on:#2e7d32;
+    --off:#c62828;
+    --running:#fb8c00;
+  }
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:18px}
+  h1{font-size:20px;margin:0 0 12px;color:#111}
+  /* Accordion header */
+  .accordion{background:var(--card);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd}
+  .accordion h2{font-size:16px;margin:0;color:var(--accent)}
+  .panel{background:var(--card);border-radius:8px;margin-bottom:12px;overflow:hidden;max-height:0;transition:max-height .28s ease;padding:0 14px}
+  .panel.open{padding:14px}
 
-/* Accordion Button */
-.accordion {
-  background: #4f46e5;
-  color: white;
-  padding: 15px;
-  cursor: pointer;
-  font-size: 20px;
-  border-radius: 8px;
-  margin-top: 12px;
-}
+  /* Buttons */
+  .relay-btn{width:150px;padding:12px;border-radius:10px;border:none;color:#fff;font-size:15px;margin:8px 6px;cursor:pointer}
+  .relay-on{background:var(--on)}
+  .relay-off{background:var(--off)}
+  .relay-run{background:var(--running)}
+  .row{display:flex;flex-wrap:wrap;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+  .progress{width:100%;height:14px;background:#eee;border-radius:8px;margin-top:8px;overflow:hidden}
+  .bar{height:100%;width:0%;background:var(--on)}
+  label{font-weight:600;color:#333}
 
-/* Panel */
-.panel {
-  max-height: 0;
-  overflow: hidden;
-  background: white;
-  border-radius: 8px;
-  padding: 0 15px;
-  transition: max-height 0.3s ease-out;
-}
+  /* status */
+  .status-ok{color:green;font-weight:700}
+  .status-off{color:red;font-weight:700}
+  .status-sensor{color:orange;font-weight:700}
 
-/* Relay Buttons */
-.relay-btn {
-  width: 150px;
-  padding: 16px;
-  margin: 10px;
-  border: none;
-  border-radius: 12px;
-  font-size: 18px;
-  color: white;
-  cursor: pointer;
-}
-
-.on {
-  background: #22c55e;
-  box-shadow: 0 0 10px #22c55e;
-}
-
-.off {
-  background: #ef4444;
-  box-shadow: 0 0 10px #ef4444;
-}
-
-/* Status Colors */
-.status-ok {
-  color: green;
-  font-weight: bold;
-}
-
-.status-off {
-  color: red;
-  font-weight: bold;
-}
-
-.status-sensor {
-  color: orange;
-  font-weight: bold;
-}
-
-/* Progress Bar */
-.progress {
-  width: 100%;
-  height: 18px;
-  background: #ddd;
-  border-radius: 9px;
-}
-.bar {
-  height: 100%;
-  width: 0%;
-  background: #22c55e;
-}
+  /* layout */
+  .grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:720px){ .grid{grid-template-columns:repeat(2,1fr)} }
+  .card{background:var(--card);padding:12px;border-radius:8px;border:1px solid #e6e6e6}
+  input[type=number]{padding:8px;border-radius:6px;border:1px solid #ccc}
+  input[type=range]{width:200px}
 </style>
 </head>
 <body>
 
-<h2>Smart Device Cloud Controller</h2>
+<h1>Aquarium Controller — Cloud Dashboard</h1>
 
-<!-- MANUAL RELAYS -->
-<div class="accordion">Manual Relays</div>
-<div class="panel">
-  <br>
-  <button id="b1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button><br>
-  <button id="b2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button><br>
-  <button id="b3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button>
-  <br><br>
+<!-- Manual Relays -->
+<div class="accordion" data-target="manualPanel"><h2>Manual Relays</h2><span class="small">tap to open</span></div>
+<div id="manualPanel" class="panel">
+  <div class="row">
+    <button id="b1" class="relay-btn relay-off" data-state="0" onclick="toggleRelay('relay1','b1')">Relay 1 — OFF</button>
+    <button id="b2" class="relay-btn relay-off" data-state="0" onclick="toggleRelay('relay2','b2')">Relay 2 — OFF</button>
+    <button id="b3" class="relay-btn relay-off" data-state="0" onclick="toggleRelay('relay3','b3')">Relay 3 — OFF</button>
+  </div>
+  <p class="small">Use these to toggle relays remotely. Buttons use an atomic transaction so concurrent clients stay consistent.</p>
 </div>
 
-<!-- TIMER RELAY -->
-<div class="accordion">Timer Relay</div>
-<div class="panel">
-  <br>
-  <input id="ms" type="number" placeholder="5000"> ms
-  <button id="tbtn" class="relay-btn off" onclick="startTimed()">START</button>
-  <p id="tinfo"></p>
-  <div class="progress"><div id="bar" class="bar"></div></div>
-  <br><br>
+<!-- Timed Relay -->
+<div class="accordion" data-target="timedPanel"><h2>Timed Relay</h2><span class="small">tap to open</span></div>
+<div id="timedPanel" class="panel">
+  <div class="card">
+    <label>Duration (ms)</label><br>
+    <input id="ms" type="number" placeholder="5000" min="100"><button id="timBtn" class="relay-btn relay-off" style="margin-left:10px" onclick="startTimed()">Start</button>
+    <div id="tinfo" class="small" style="margin-top:8px"></div>
+    <div class="progress"><div id="tbar" class="bar"></div></div>
+  </div>
 </div>
 
-<!-- SERVO CONTROL -->
-<div class="accordion">Servo Motor</div>
-<div class="panel">
-  <br>
-  Speed: <span id="sp"></span>
-  <input id="servoSpeed" type="range" min="1" max="20" value="5" oninput="updateSpeed(this.value)">
-  <br><br>
-  <button id="servoBtn" class="relay-btn off" onclick="runServo()">RUN SERVO</button>
-  <br><br>
+<!-- Food Time (servo as food timer) -->
+<div class="accordion" data-target="foodPanel"><h2>Food Time (Servo)</h2><span class="small">tap to open</span></div>
+<div id="foodPanel" class="panel">
+  <div class="card">
+    <label>Servo Speed</label> <span id="speedText" class="small">5</span><br>
+    <input id="servoSpeed" type="range" min="1" max="20" value="5" oninput="onSpeed(this.value)"><br><br>
+    <button id="servoBtn" class="relay-btn relay-off" onclick="runServo()">Run Servo</button>
+    <p class="small">Run the servo (food dispenser). Button will show RUNNING while servo_running==1 in DB.</p>
+  </div>
 </div>
 
-<!-- SENSOR DETAILS -->
-<div class="accordion">Sensor & Device Status</div>
-<div class="panel">
-  <br>
-  <p>Device: <span id="devstat"></span></p>
-  <p>Sensor: <span id="senstat"></span></p>
-  <p>Temperature: <span id="temp"></span> °C</p>
-  <p>Humidity: <span id="hum"></span> %</p>
-  <p>Last Update: <span id="last"></span></p>
-  <br><br>
+<!-- Sensor Readings -->
+<div class="accordion" data-target="sensorPanel"><h2>Sensor Readings</h2><span class="small">tap to open</span></div>
+<div id="sensorPanel" class="panel">
+  <div class="grid">
+    <div class="card">
+      <p><strong>Device status:</strong> <span id="devstat">--</span></p>
+      <p><strong>Sensor status:</strong> <span id="senstat">--</span></p>
+    </div>
+    <div class="card">
+      <p><strong>Temperature:</strong> <span id="temp">--</span> °C</p>
+      <p><strong>Humidity:</strong> <span id="hum">--</span> %</p>
+      <p><strong>Last update:</strong> <span id="last">--</span></p>
+    </div>
+  </div>
 </div>
 
-<!-- FIREBASE SCRIPT -->
 <script type="module">
-
-/* ---------------- FIREBASE CONFIG ---------------- */
+/* ---------------- FIREBASE - replace with your project settings ---------------- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, onValue, update }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import {
+  getDatabase, ref, onValue, update, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "ENTER-API-KEY-HERE",
-  authDomain: "ENTER-PROJECT.firebaseapp.com",
-  databaseURL: "https://ENTER-PROJECT-default-rtdb.firebaseio.com",
-  projectId: "ENTER-PROJECT-ID",
+  apiKey: "REPLACE_WITH_YOUR_APIKEY",
+  authDomain: "REPLACE_WITH_PROJECT.firebaseapp.com",
+  databaseURL: "https://REPLACE_WITH_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "REPLACE_WITH_PROJECT-ID"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const deviceRef = ref(db, "device");
 
-/* ---------------- ACCORDION ---------------- */
-document.addEventListener("DOMContentLoaded", () => {
-  let acc = document.getElementsByClassName("accordion");
-  for (let i = 0; i < acc.length; i++) {
-    acc[i].addEventListener("click", function () {
-      let panel = this.nextElementSibling;
-      panel.style.maxHeight = panel.style.maxHeight ? null : panel.scrollHeight + "px";
+/* ---------------- ACCORDION (tabs) ---------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.accordion').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-target');
+      const panel = document.getElementById(target);
+      if (!panel) return;
+      // toggle open/close
+      if (panel.style.maxHeight && panel.style.maxHeight !== '0px') {
+        panel.style.maxHeight = null;
+        panel.classList.remove('open');
+      } else {
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+        panel.classList.add('open');
+      }
     });
-  }
+  });
 });
 
-/* ---------------- REALTIME LISTENER ---------------- */
-onValue(ref(db, "device"), snap => {
-  if (!snap.exists()) return;
-  let d = snap.val();
-
-  // Relay UI
-  setBtn("b1", d.relay1);
-  setBtn("b2", d.relay2);
-  setBtn("b3", d.relay3);
-
-  // Timer Relay
-  if (d.timed?.state == 1) {
-    document.getElementById("tbtn").className = "relay-btn on";
-    document.getElementById("tbtn").innerText = "RUNNING";
-
-    let rem = d.timed.end - Date.now();
-    let dur = d.timed.duration_ms;
-
-    if (rem < 0) rem = 0;
-    document.getElementById("tinfo").innerText = "Ends in: " + rem + " ms";
-
-    let pct = ((dur - rem) / dur) * 100;
-    document.getElementById("bar").style.width = pct + "%";
+/* ---------------- UI helpers ---------------- */
+function setButtonUI(btnId, value) {
+  const b = document.getElementById(btnId);
+  if (!b) return;
+  b.setAttribute('data-state', value ? '1' : '0');
+  if (value) {
+    b.classList.remove('relay-off'); b.classList.add('relay-on');
+    b.innerText = b.innerText.split('—')[0].trim() + " — ON";
   } else {
-    document.getElementById("tbtn").className = "relay-btn off";
-    document.getElementById("tbtn").innerText = "START";
-    document.getElementById("bar").style.width = "0%";
-    document.getElementById("tinfo").innerText = "";
+    b.classList.remove('relay-on'); b.classList.add('relay-off');
+    b.innerText = b.innerText.split('—')[0].trim() + " — OFF";
   }
-
-  // Servo
-  document.getElementById("servoSpeed").value = d.servo_speed ?? 5;
-  document.getElementById("sp").innerText = d.servo_speed ?? 5;
-
-  if (d.servo_running == 1) {
-    document.getElementById("servoBtn").className = "relay-btn on";
-    document.getElementById("servoBtn").innerText = "RUNNING";
-  } else {
-    document.getElementById("servoBtn").className = "relay-btn off";
-    document.getElementById("servoBtn").innerText = "RUN SERVO";
-  }
-
-  // Sensor
-  document.getElementById("devstat").innerText = d.device_online ? "Online" : "Offline";
-  document.getElementById("devstat").className = d.device_online ? "status-ok" : "status-off";
-
-  document.getElementById("senstat").innerText = d.sensor_ok ? "Connected" : "Not Connected";
-  document.getElementById("senstat").className = d.sensor_ok ? "status-ok" : "status-sensor";
-
-  document.getElementById("temp").innerText = d.sensor?.temp ?? "--";
-  document.getElementById("hum").innerText = d.sensor?.hum ?? "--";
-  document.getElementById("last").innerText = d.heartbeat ? new Date(d.heartbeat).toLocaleTimeString() : "--";
-});
-
-/* ---------------- BUTTON STATE ---------------- */
-function setBtn(id, st) {
-  let btn = document.getElementById(id);
-  if (!btn) return;
-  btn.className = st == 1 ? "relay-btn on" : "relay-btn off";
 }
 
-/* ---------------- RELAY CONTROL ---------------- */
-window.toggleRelay = function(name) {
-  let current = document.getElementById(
-    name === "relay1" ? "b1" :
-    name === "relay2" ? "b2" : "b3"
-  ).classList.contains("on");
+/* ---------------- REALTIME LISTENER (status updates) ---------------- */
+onValue(deviceRef, snap => {
+  const d = snap.val();
+  if (!d) return;
 
-  update(ref(db, "device"), { [name]: current ? 0 : 1 });
-};
+  // Relays (safe check)
+  setButtonUI('b1', !!d.relay1);
+  setButtonUI('b2', !!d.relay2);
+  setButtonUI('b3', !!d.relay3);
 
-/* ---------------- TIMER RELAY ---------------- */
-window.startTimed = function() {
-  let ms = parseInt(document.getElementById("ms").value);
-  if (!ms || ms <= 0) { alert("Enter valid ms!"); return; }
+  // Timed relay UI
+  if (d.timed && d.timed.state == 1) {
+    document.getElementById('timBtn').classList.remove('relay-off'); document.getElementById('timBtn').classList.add('relay-run');
+    document.getElementById('timBtn').innerText = 'RUNNING...';
+    const now = Date.now();
+    let rem = (d.timed.end || 0) - now;
+    if (rem < 0) rem = 0;
+    document.getElementById('tinfo').innerText = 'Auto-off in ' + rem + ' ms';
+    const dur = d.timed.duration_ms || 1;
+    const pct = Math.max(0, Math.min(100, ((dur - rem) / dur) * 100));
+    document.getElementById('tbar').style.width = pct + '%';
+  } else {
+    document.getElementById('timBtn').classList.remove('relay-run'); document.getElementById('timBtn').classList.add('relay-off');
+    document.getElementById('timBtn').innerText = 'Start';
+    document.getElementById('tinfo').innerText = '';
+    document.getElementById('tbar').style.width = '0%';
+  }
 
-  update(ref(db, "device/timed"), {
+  // Servo UI
+  const speed = (d.servo_speed !== undefined) ? d.servo_speed : 5;
+  document.getElementById('servoSpeed').value = speed;
+  document.getElementById('speedText').innerText = speed;
+  if (d.servo_running == 1) {
+    document.getElementById('servoBtn').classList.remove('relay-off'); document.getElementById('servoBtn').classList.add('relay-run');
+    document.getElementById('servoBtn').innerText = 'RUNNING...';
+  } else {
+    document.getElementById('servoBtn').classList.remove('relay-run'); document.getElementById('servoBtn').classList.add('relay-off');
+    document.getElementById('servoBtn').innerText = 'Run Servo';
+  }
+
+  // Sensor & device status
+  const devEl = document.getElementById('devstat');
+  const sensorEl = document.getElementById('senstat');
+  if (d.device_online === 1 || d.device_online === true) {
+    devEl.innerText = 'Online'; devEl.className = 'status-ok';
+  } else { devEl.innerText = 'Offline'; devEl.className = 'status-off'; }
+
+  if (d.sensor_ok === 1 || d.sensor_ok === true) {
+    sensorEl.innerText = 'Connected'; sensorEl.className = 'status-ok';
+  } else { sensorEl.innerText = 'Not Connected'; sensorEl.className = 'status-sensor'; }
+
+  // Sensor values
+  if (d.sensor && typeof d.sensor.temp !== 'undefined') {
+    document.getElementById('temp').innerText = Number(d.sensor.temp).toFixed(2);
+    document.getElementById('hum').innerText = Number(d.sensor.hum).toFixed(2);
+  } else {
+    document.getElementById('temp').innerText = '--';
+    document.getElementById('hum').innerText = '--';
+  }
+
+  // heartbeat -> show time
+  if (d.heartbeat) {
+    const date = new Date(d.heartbeat);
+    if (!isNaN(date)) document.getElementById('last').innerText = date.toLocaleString();
+    else document.getElementById('last').innerText = d.heartbeat;
+  } else document.getElementById('last').innerText = '--';
+});
+
+/* ---------------- RELAY TOGGLE (atomic) ----------------
+   Uses runTransaction on specific child so multiple clients don't overwrite
+*/
+async function toggleRelay(relayName, btnId) {
+  try {
+    console.log('Toggling', relayName);
+    const childRef = ref(db, `device/${relayName}`);
+    await runTransaction(childRef, (current) => {
+      // if missing, treat as 0 -> set 1
+      if (current === null || typeof current === 'undefined') return 1;
+      return current ? 0 : 1;
+    });
+    console.log('Toggled', relayName);
+  } catch (err) {
+    console.error('toggleRelay error', err);
+    alert('Failed to toggle: ' + err.message);
+  }
+}
+
+/* ---------------- TIMED RELAY START ---------------- */
+function startTimed() {
+  const ms = parseInt(document.getElementById('ms').value);
+  if (!ms || ms <= 0) { alert('Enter ms > 0'); return; }
+  update(ref(db, 'device/timed'), {
     state: 1,
     duration_ms: ms,
     end: Date.now() + ms
-  });
-};
+  }).then(()=> console.log('timed started')).catch(e=>{console.error(e); alert('Failed to start');});
+}
 
-/* ---------------- SERVO SPEED ---------------- */
-window.updateSpeed = v => {
-  document.getElementById("sp").innerText = v;
-  update(ref(db, "device"), { servo_speed: Number(v) });
-};
+/* ---------------- SERVO ---------------- */
+function onSpeed(v) {
+  document.getElementById('speedText').innerText = v;
+  update(ref(db, 'device'), { servo_speed: Number(v) });
+}
+function runServo() {
+  update(ref(db, 'device'), { servo_running: 1 }).catch(e=>{console.error(e); alert('Failed to run servo');});
+}
 
-/* ---------------- RUN SERVO ---------------- */
-window.runServo = () => {
-  update(ref(db, "device"), { servo_running: 1 });
-};
+/* ---------------- Debug helpers (expose to window for console) ---------------- */
+window.toggleRelay = toggleRelay;
+window.startTimed = startTimed;
+window.runServo = runServo;
+window.onSpeed = onSpeed;
+
+console.log('Dashboard loaded. Replace firebaseConfig placeholders with your project values if you haven\'t.');
 </script>
 
 </body>
