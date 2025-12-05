@@ -1,193 +1,178 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Aquarium Controller</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<title>AC Control Dashboard</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f2f2f2;
-    padding: 16px;
-  }
+    body { font-family: Arial; margin: 0; background:#f4f4f4; }
+    .container { width: 95%; max-width: 500px; margin: auto; padding-top: 20px; }
 
-  h2 { text-align: center; }
+    .card {
+        background: #fff; padding: 15px; border-radius: 10px; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-bottom: 12px;
+    }
 
-  .section {
-    background: #fff;
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 16px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
-  }
+    h2 { margin-top: 0; }
 
-  .relay-btn {
-    width: 140px;
-    padding: 16px;
-    margin: 10px;
-    border: none;
-    border-radius: 12px;
-    font-size: 18px;
-    cursor: pointer;
-    color: white;
-    transition: 0.2s;
-  }
+    .status-online { color: green; font-weight: bold; }
+    .status-offline { color: red; font-weight: bold; }
 
-  .on  { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-  .off { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    .tab {
+        background:#eee; padding: 10px; border-radius: 8px;
+        cursor:pointer; margin-bottom:5px; font-weight:bold;
+    }
+    .tabContent { display:none; padding:10px; background:#fff; border-radius:8px; }
 
-  .online  { color: green;  font-weight: bold; }
-  .offline { color: red;    font-weight: bold; }
-  .sensor-ok { color: green; font-weight: bold; }
-  .sensor-bad { color: orange; font-weight: bold; }
+    input, select, button { 
+        width: 100%; padding:10px; margin-top:8px; font-size:16px;
+        border-radius:6px; border:1px solid #ccc;
+    }
 
-  .accordion {
-    background: #ddd;
-    padding: 14px;
-    font-size: 18px;
-    cursor: pointer;
-    border-radius: 10px;
-    margin-top: 10px;
-    width: 100%;
-    border: none;
-    text-align: left;
-  }
-
-  .panel {
-    overflow: hidden;
-    max-height: 0;
-    background: #fff;
-    border-radius: 10px;
-    margin-top: 6px;
-    padding: 0 14px;
-    transition: max-height 0.3s ease;
-  }
-
-  .label { font-size: 17px; }
+    button { background:#007bff; color:#fff; border:none; }
 </style>
 </head>
+
 <body>
+<div class="container">
 
-<h2>Firebase Aquarium Controller</h2>
+    <h2>AC Control Panel</h2>
 
-<!-- ---------------- RELAY CONTROL ---------------- -->
-<button class="accordion">Relay Control</button>
-<div class="panel">
-  <br>
-  <button id="b1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button><br>
-  <button id="b2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button><br>
-  <button id="b3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button><br><br>
+    <!-- DEVICE STATUS -->
+    <div class="card">
+        <h3>Device Status:</h3>
+        <p id="deviceStatus">Checking...</p>
+        <p id="sensorStatus">Checking...</p>
+    </div>
+
+    <!-- SENSOR DATA -->
+    <div class="card">
+        <h3>Temperature & Humidity</h3>
+        <p>Temperature: <span id="temp">--</span> °C</p>
+        <p>Humidity: <span id="hum">--</span> %</p>
+    </div>
+
+    <!-- CONTROL TAB -->
+    <div class="tab" onclick="toggleTab('controlTab')">Manual Control</div>
+    <div id="controlTab" class="tabContent">
+        <button onclick="sendCommand('ON')">Turn ON</button>
+        <button onclick="sendCommand('OFF')" style="background:#d9534f;">Turn OFF</button>
+    </div>
+
+    <!-- TIMER TAB -->
+    <div class="tab" onclick="toggleTab('timerTab')">Timer Settings</div>
+    <div id="timerTab" class="tabContent">
+
+        <h3>Add Timer</h3>
+        <label>ON Time:</label>
+        <input type="time" id="onTime">
+
+        <label>OFF Time:</label>
+        <input type="time" id="offTime">
+
+        <button onclick="addTimer()">Save Timer</button>
+
+        <h3>Saved Timers</h3>
+        <div id="timerList">Loading...</div>
+    </div>
 </div>
 
-<!-- ---------------- TEMPERATURE PANEL ---------------- -->
-<button class="accordion">Temperature & Humidity</button>
-<div class="panel">
-  <br>
-  <p class="label">Device Status: <span id="devStatus">--</span></p>
-  <p class="label">Sensor: <span id="senStatus">--</span></p>
-  <p class="label">Temperature: <span id="temp">--</span> °C</p>
-  <p class="label">Humidity: <span id="hum">--</span> %</p>
-  <br>
-</div>
+<!-- Firebase Scripts -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js"></script>
 
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-  import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
-
-  // ----------------------------------------------------------
-  // 🔥 INSERT YOUR FIREBASE DETAILS HERE
-  // ----------------------------------------------------------
-  const firebaseConfig = {
+<script>
+// ------------------------------------------------------------
+//       🔥 ENTER YOUR FIREBASE DETAILS HERE
+// ------------------------------------------------------------
+const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR-PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR-PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR-PROJECT-ID",
-    storageBucket: "YOUR-PROJECT.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "YOUR_APP_ID"
-  };
+    authDomain: "YOUR_DOMAIN",
+    databaseURL: "YOUR_FIREBASE_DB_URL",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_BUCKET",
+    messagingSenderId: "MSG_ID",
+    appId: "APP_ID"
+};
+// ------------------------------------------------------------
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  // -------------------- ACCORDION -----------------------
-  let acc = document.getElementsByClassName("accordion");
-  for (let i = 0; i < acc.length; i++) {
-    acc[i].onclick = function () {
-      this.classList.toggle("active");
-      let panel = this.nextElementSibling;
-      panel.style.maxHeight = panel.style.maxHeight ? null : panel.scrollHeight + "px";
+// 🔹 Toggle Tab
+function toggleTab(id) {
+    let x = document.getElementById(id);
+    x.style.display = (x.style.display === "block") ? "none" : "block";
+}
+
+// 🔹 Send ON/OFF Command
+function sendCommand(cmd) {
+    firebase.database().ref("AC/Command").set(cmd);
+}
+
+// 🔹 Add Timer
+function addTimer() {
+    let onTime = document.getElementById("onTime").value;
+    let offTime = document.getElementById("offTime").value;
+
+    if (!onTime || !offTime) {
+        alert("Please select both times");
+        return;
     }
-  }
 
-  // -------------------- REALTIME LISTENER -----------------------
-  const deviceRef = ref(db, "device");
+    let id = Date.now();
+    firebase.database().ref("AC/Timers/" + id).set({
+        on: onTime,
+        off: offTime
+    });
 
-  onValue(deviceRef, snap => {
+    alert("Timer Added");
+}
+
+// 🔹 Load Timers
+firebase.database().ref("AC/Timers").on("value", snap => {
+    let data = snap.val();
+    let html = "";
+
+    if (!data) {
+        html = "No timers saved";
+    } else {
+        for (let id in data) {
+            html += `<div class='card'>
+                <p>ON: ${data[id].on}</p>
+                <p>OFF: ${data[id].off}</p>
+                <button onclick="deleteTimer('${id}')">Delete</button>
+            </div>`;
+        }
+    }
+
+    document.getElementById("timerList").innerHTML = html;
+});
+
+// 🔹 Delete Timer
+function deleteTimer(id) {
+    firebase.database().ref("AC/Timers/" + id).remove();
+}
+
+// 🔹 Read Temperature & Humidity
+firebase.database().ref("AC/Sensor").on("value", snap => {
     let d = snap.val();
     if (!d) return;
 
-    // RELAY STATES
-    setBtn("b1", d.relay1);
-    setBtn("b2", d.relay2);
-    setBtn("b3", d.relay3);
+    document.getElementById("temp").textContent = d.temp ?? "--";
+    document.getElementById("hum").textContent = d.hum ?? "--";
 
-    // TEMPERATURE + HUMIDITY
-    document.getElementById("temp").innerText = d.temperature ?? "--";
-    document.getElementById("hum").innerText = d.humidity ?? "--";
+    document.getElementById("sensorStatus").innerHTML =
+        (d.connected ? "<span class='status-online'>Sensor Connected</span>"
+                     : "<span class='status-offline'>Sensor Disconnected</span>");
+});
 
-    // DEVICE ONLINE / OFFLINE
-    let dev = document.getElementById("devStatus");
-    if (d.device_online == 1) {
-      dev.innerText = "Online";
-      dev.className = "online";
-    } else {
-      dev.innerText = "Offline";
-      dev.className = "offline";
-    }
-
-    // SENSOR STATUS
-    let sen = document.getElementById("senStatus");
-    if (d.sensor_ok == 1) {
-      sen.innerText = "Connected";
-      sen.className = "sensor-ok";
-    } else {
-      sen.innerText = "Not Connected";
-      sen.className = "sensor-bad";
-      document.getElementById("temp").innerText = "--";
-      document.getElementById("hum").innerText = "--";
-    }
-  });
-
-  // -------------------- UI BUTTON COLOR -----------------------
-  function setBtn(id, state) {
-    let btn = document.getElementById(id);
-
-    if (state == 1) {
-      btn.classList.remove("off");
-      btn.classList.add("on");
-    } else {
-      btn.classList.remove("on");
-      btn.classList.add("off");
-    }
-  }
-
-  // -------------------- TOGGLE RELAY -----------------------
-  window.toggleRelay = function (relayName) {
-    let btnId = relayName === "relay1" ? "b1" :
-                relayName === "relay2" ? "b2" :
-                                         "b3";
-
-    let btn = document.getElementById(btnId);
-    let currentState = btn.classList.contains("on");
-
-    update(ref(db, "device"), {
-      [relayName]: currentState ? 0 : 1
-    });
-  }
+// 🔹 Device Online/Offline check
+firebase.database().ref("AC/Status").on("value", snap => {
+    let isOnline = snap.val();
+    document.getElementById("deviceStatus").innerHTML =
+        isOnline ? "<span class='status-online'>Online</span>"
+                 : "<span class='status-offline'>Offline</span>";
+});
 </script>
 
 </body>
