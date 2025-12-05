@@ -42,17 +42,7 @@ body {
 
 <h2>Aquarium Controller – Cloud Dashboard</h2>
 
-<!-- Firebase Login -->
-<div class="card">
-  <h3>Login</h3>
-  <input id="email" type="text" placeholder="Email"><br><br>
-  <input id="password" type="password" placeholder="Password"><br><br>
-  <button onclick="login()">Login</button>
-  <p id="loginStatus"></p>
-</div>
-
-<!-- MAIN UI (hidden until login) -->
-<div id="mainUI" style="display:none">
+<div id="mainUI">
 
 <!-- Relays -->
 <div class="card">
@@ -99,8 +89,6 @@ body {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, update, onValue } 
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword } 
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "YOUR_FIREBASE_API_KEY",
@@ -111,23 +99,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const auth = getAuth();
-
-// ---------------- LOGIN ----------------------
-function login() {
-  let email = document.getElementById("email").value;
-  let pass = document.getElementById("password").value;
-
-  signInWithEmailAndPassword(auth, email, pass)
-    .then(() => {
-      document.getElementById("loginStatus").innerText = "Login successful!";
-      document.getElementById("mainUI").style.display = "block";
-    })
-    .catch(err => {
-      document.getElementById("loginStatus").innerText = err.message;
-    });
-}
-window.login = login;
 
 // ------------- REALTIME LISTENER ----------------------
 onValue(ref(db, "device"), snap => {
@@ -202,10 +173,7 @@ function setButton(id, state) {
 
 // ---------------- RELAY CONTROL -------------------------
 function toggleRelay(name) {
-  let path = {};
-  // toggle means set the opposite (actual value fetched in realtime)
-  path[name] = (Math.random() < 0.5) ? 1 : 0; // overwritten in ESP patch
-  update(ref(db, "device"), path);
+  update(ref(db, "device"), { [name]: null }); // ESP will toggle
 }
 window.toggleRelay = toggleRelay;
 
