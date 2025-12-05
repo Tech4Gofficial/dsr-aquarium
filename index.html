@@ -2,234 +2,183 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Relay Control Panel</title>
+<title>Device Control Panel</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
   body {
     font-family: Arial, sans-serif;
-    background: #f2f2f2;
-    padding: 20px;
-    text-align: center;
+    background: #eee;
+    margin: 0;
+    padding: 12px;
   }
 
-  h2 {
-    margin-bottom: 20px;
-  }
+  h2 { text-align:center; margin-bottom: 20px; }
 
-  /* ---------- Relay Buttons ---------- */
-  .relay-btn {
-    width: 140px;
-    padding: 18px;
-    margin: 10px;
-    border: none;
+  /* TAB CARDS */
+  .card {
+    background: white;
     border-radius: 12px;
-    font-size: 18px;
-    cursor: pointer;
-    color: white;
-    transition: 0.2s ease-in-out;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    overflow: hidden;
   }
 
-  .on {
-    background: #22c55e;
-    box-shadow: 0 0 10px #22c55e;
-  }
-
-  .off {
-    background: #ef4444;
-    box-shadow: 0 0 10px #ef4444;
-  }
-
-  /* ---------- Accordion Style ---------- */
-  .accordion {
-    background: #4f46e5;
-    color: white;
+  .card-header {
+    background: #f5f5f5;
     padding: 14px;
-    width: 100%;
-    border: none;
-    text-align: left;
-    outline: none;
     font-size: 18px;
-    margin-top: 15px;
-    border-radius: 10px;
+    font-weight: bold;
     cursor: pointer;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
   }
 
-  .accordion.active {
-    background: #3730a3;
-  }
-
-  .panel {
+  .card-content {
     max-height: 0;
     overflow: hidden;
-    background: white;
-    border-radius: 10px;
-    margin-top: 5px;
-    transition: max-height 0.3s ease-out;
-    padding: 0 20px;
-    text-align: left;
+    transition: max-height .35s ease;
+    padding: 0 14px;
   }
 
-  .panel p {
-    padding: 10px 0;
+  .card-content.open {
+    padding: 14px;
   }
 
-  /* Temperature Box */
-  .temp-box {
-    background: #fff;
-    padding: 15px;
-    margin: 10px 0;
+  /* Buttons */
+  .relay-btn {
+    width: 140px;
+    padding: 16px;
+    margin: 8px;
+    border: none;
     border-radius: 10px;
-    text-align: center;
-    font-size: 22px;
-    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    color: white;
   }
+  .on { background:#2ecc71; }
+  .off{ background:#e74c3c; }
+  .run{ background:#f39c12; color:white; }
+
+  .row { display:flex; flex-wrap:wrap; gap:10px; }
+
+  label { font-weight:bold; }
+  input[type=number], input[type=time] {
+    padding:8px;
+    font-size:16px;
+    width:150px;
+    margin:6px 0;
+  }
+
 </style>
 </head>
 <body>
 
-<h2>Device Controller</h2>
+<h2>Device Control Panel</h2>
 
-<!-- ============================= -->
-<!-- ACCORDION – RELAY CONTROL     -->
-<!-- ============================= -->
-<button class="accordion">Relay Control</button>
-<div class="panel">
-
-  <br>
-  <button id="b1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button><br>
-  <button id="b2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button><br>
-  <button id="b3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button><br>
-  <br>
-
-</div>
-
-<!-- ============================= -->
-<!-- ACCORDION – TIMER             -->
-<!-- ============================= -->
-<button class="accordion">Timer Settings</button>
-<div class="panel">
-
-  <p>Timer will be saved to Firebase.</p>
-
-  <label>Start Time:</label><br>
-  <input type="time" id="startTime"><br><br>
-
-  <label>Stop Time:</label><br>
-  <input type="time" id="stopTime"><br><br>
-
-  <button onclick="saveTimer()" class="relay-btn on" style="width:180px;">Save Timer</button>
-
-  <br><br>
-
-  <p><b>Current Saved Timer:</b></p>
-  <p id="timerStatus">Loading...</p>
-
-</div>
-
-<!-- ============================= -->
-<!-- ACCORDION – TEMPERATURE       -->
-<!-- ============================= -->
-<button class="accordion">Temperature</button>
-<div class="panel">
-
-  <div class="temp-box">
-    Temperature: <span id="temperature">--</span> °C
+<!-- TAB 1 : Manual Relay -->
+<div class="card">
+  <div class="card-header" onclick="toggleTab('t1')">
+    Manual Relays <span>🔌</span>
   </div>
-
+  <div class="card-content" id="t1">
+    <div class="row">
+      <button id="r1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button>
+      <button id="r2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button>
+      <button id="r3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button>
+    </div>
+  </div>
 </div>
 
-<!-- ============================= -->
-<!-- FIREBASE SDK -->
-<!-- ============================= -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-  import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+<!-- TAB 2 : Timer Relay -->
+<div class="card">
+  <div class="card-header" onclick="toggleTab('t2')">
+    Timer Relay <span>⏱️</span>
+  </div>
+  <div class="card-content" id="t2">
 
-  /* 🔥 YOUR FIREBASE CONFIG */
-  const firebaseConfig = {
-    apiKey: "YOUR-API-KEY",
-    authDomain: "YOUR-PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR-PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR-PROJECT-ID",
-    storageBucket: "YOUR-PROJECT.appspot.com",
-    messagingSenderId: "123456",
-    appId: "APP-ID"
-  };
+    <label>Duration (ms)</label><br>
+    <input type="number" id="duration" placeholder="5000"><br>
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+    <button id="tbtn" class="relay-btn off" onclick="startTimerRelay()">Start Timer</button>
 
-  /* ------------------------
-     REALTIME RELAY UPDATE
-  -------------------------*/
-  const deviceRef = ref(db, "device");
+    <p id="tinfo" style="font-weight:bold;margin-top:6px;"></p>
+  </div>
+</div>
 
-  onValue(deviceRef, (snapshot) => {
-    let data = snapshot.val();
-    if (!data) return;
+<!-- TAB 3 : Food Time (Servo) -->
+<div class="card">
+  <div class="card-header" onclick="toggleTab('t3')">
+    Food Time <span>🍽️</span>
+  </div>
+  <div class="card-content" id="t3">
 
-    setButtonState("b1", data.relay1);
-    setButtonState("b2", data.relay2);
-    setButtonState("b3", data.relay3);
+    <label>Feed Now</label><br>
+    <button id="feedBtn" class="relay-btn run" onclick="feedNow()">RUN</button>
+    <br><br>
 
-    document.getElementById("temperature").innerHTML = data.temp ?? "--";
+    <label>Set Feeding Time</label><br>
+    <input type="time" id="feedTime">
+    <button class="relay-btn on" onclick="saveFeedTime()">Save</button>
 
-    document.getElementById("timerStatus").innerHTML =
-      `Start: ${data.timerStart || "--"} | Stop: ${data.timerStop || "--"}`;
-  });
+  </div>
+</div>
 
-  function setButtonState(id, state) {
-    let btn = document.getElementById(id);
+<!-- TAB 4 : Sensor Readings -->
+<div class="card">
+  <div class="card-header" onclick="toggleTab('t4')">
+    Sensor Readings <span>🌡️</span>
+  </div>
+  <div class="card-content" id="t4">
 
-    if (state == 1) {
-      btn.classList.remove("off");
-      btn.classList.add("on");
-    } else {
-      btn.classList.remove("on");
-      btn.classList.add("off");
-    }
-  }
+    <p>Temperature : <b id="temp">--</b> °C</p>
+    <p>Humidity : <b id="hum">--</b> %</p>
+    <p>Status : <b id="status">--</b></p>
 
-  /* -------- Relay Toggle -------- */
-  window.toggleRelay = function(name) {
-    let id = name === "relay1" ? "b1" : name === "relay2" ? "b2" : "b3";
-    let btn = document.getElementById(id);
-    let isOn = btn.classList.contains("on");
+  </div>
+</div>
 
-    update(ref(db, "device"), { [name]: isOn ? 0 : 1 });
-  };
-
-  /* -------- Timer Save -------- */
-  window.saveTimer = function() {
-    let start = document.getElementById("startTime").value;
-    let stop = document.getElementById("stopTime").value;
-
-    update(ref(db, "device"), {
-      timerStart: start,
-      timerStop: stop
-    });
-
-    alert("Timer Updated!");
-  };
-
-</script>
-
-<!-- ============================= -->
-<!-- ACCORDION SCRIPT -->
-<!-- ============================= -->
 <script>
-document.querySelectorAll(".accordion").forEach((acc) => {
-  acc.addEventListener("click", function () {
-    this.classList.toggle("active");
-    let panel = this.nextElementSibling;
+/* ---------------------------------------------------
+   CARD SLIDER
+--------------------------------------------------- */
+function toggleTab(id){
+  let c = document.getElementById(id);
+  if(c.classList.contains("open")){
+    c.style.maxHeight = "0";
+    c.classList.remove("open");
+  } else {
+    c.style.maxHeight = c.scrollHeight + "px";
+    c.classList.add("open");
+  }
+}
 
-    if (panel.style.maxHeight)
-      panel.style.maxHeight = null;
-    else
-      panel.style.maxHeight = panel.scrollHeight + "px";
-  });
-});
+/* ---------------------------------------------------
+   FIREBASE / ESP COMMUNICATION (YOU PLUG URLs HERE)
+--------------------------------------------------- */
+function toggleRelay(name){
+  console.log("Toggle:", name);
+  // example API:
+  // fetch("/relay/"+name+"/toggle");
+}
+
+function startTimerRelay(){
+  let ms = document.getElementById("duration").value;
+  alert("Starting timer for: " + ms + "ms");
+  // fetch("/timed/on?ms="+ms);
+}
+
+function feedNow(){
+  alert("Feeding Now (Servo Run)");
+  // fetch("/servo/run");
+}
+
+function saveFeedTime(){
+  let t = document.getElementById("feedTime").value;
+  alert("Feeding time saved: " + t);
+}
+
 </script>
 
 </body>
