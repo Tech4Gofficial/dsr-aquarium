@@ -1,179 +1,229 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AC Control Dashboard</title>
+<title>ESP32 Cloud Controller</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
-    body { font-family: Arial; margin: 0; background:#f4f4f4; }
-    .container { width: 95%; max-width: 500px; margin: auto; padding-top: 20px; }
+  body {
+    font-family: Arial;
+    background: #f2f2f2;
+    padding: 20px;
+  }
 
-    .card {
-        background: #fff; padding: 15px; border-radius: 10px; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-bottom: 12px;
-    }
+  h2 { text-align: center; }
 
-    h2 { margin-top: 0; }
+  .card {
+    background: #fff;
+    margin-bottom: 18px;
+    padding: 18px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+  }
 
-    .status-online { color: green; font-weight: bold; }
-    .status-offline { color: red; font-weight: bold; }
+  .btn {
+    padding: 12px;
+    width: 130px;
+    margin: 5px;
+    border-radius: 10px;
+    border: none;
+    color: #fff;
+    font-size: 17px;
+  }
+  .on { background: #22c55e; }
+  .off { background: #ef4444; }
+  .running { background: #fb8c00; }
 
-    .tab {
-        background:#eee; padding: 10px; border-radius: 8px;
-        cursor:pointer; margin-bottom:5px; font-weight:bold;
-    }
-    .tabContent { display:none; padding:10px; background:#fff; border-radius:8px; }
+  input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #999;
+    margin-top: 6px;
+  }
 
-    input, select, button { 
-        width: 100%; padding:10px; margin-top:8px; font-size:16px;
-        border-radius:6px; border:1px solid #ccc;
-    }
+  .status-ok { color: #22c55e; font-weight: bold; }
+  .status-bad { color: #ef4444; font-weight: bold; }
+  .status-sensor { color: orange; font-weight: bold; }
 
-    button { background:#007bff; color:#fff; border:none; }
+  .progress {
+    height: 12px;
+    background: #ddd;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+  
+  .bar {
+    height: 12px;
+    width: 0%;
+    background: #4f46e5;
+    border-radius: 8px;
+  }
 </style>
 </head>
-
 <body>
-<div class="container">
 
-    <h2>AC Control Panel</h2>
+<h2>ESP32 Controller (Firebase)</h2>
 
-    <!-- DEVICE STATUS -->
-    <div class="card">
-        <h3>Device Status:</h3>
-        <p id="deviceStatus">Checking...</p>
-        <p id="sensorStatus">Checking...</p>
-    </div>
-
-    <!-- SENSOR DATA -->
-    <div class="card">
-        <h3>Temperature & Humidity</h3>
-        <p>Temperature: <span id="temp">--</span> °C</p>
-        <p>Humidity: <span id="hum">--</span> %</p>
-    </div>
-
-    <!-- CONTROL TAB -->
-    <div class="tab" onclick="toggleTab('controlTab')">Manual Control</div>
-    <div id="controlTab" class="tabContent">
-        <button onclick="sendCommand('ON')">Turn ON</button>
-        <button onclick="sendCommand('OFF')" style="background:#d9534f;">Turn OFF</button>
-    </div>
-
-    <!-- TIMER TAB -->
-    <div class="tab" onclick="toggleTab('timerTab')">Timer Settings</div>
-    <div id="timerTab" class="tabContent">
-
-        <h3>Add Timer</h3>
-        <label>ON Time:</label>
-        <input type="time" id="onTime">
-
-        <label>OFF Time:</label>
-        <input type="time" id="offTime">
-
-        <button onclick="addTimer()">Save Timer</button>
-
-        <h3>Saved Timers</h3>
-        <div id="timerList">Loading...</div>
-    </div>
+<!-- DEVICE STATUS -->
+<div class="card">
+  <h3>Device Status</h3>
+  <p id="devstat">Checking...</p>
+  <p id="senstat">Sensor: Checking...</p>
 </div>
 
-<!-- Firebase Scripts -->
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js"></script>
+<!-- SENSOR READINGS -->
+<div class="card">
+  <h3>Sensor Readings</h3>
+  <p>Temperature: <span id="temp">--</span> °C</p>
+  <p>Humidity: <span id="hum">--</span> %</p>
+  <p>Last Update: <span id="last">--</span></p>
+</div>
 
-<script>
-// ------------------------------------------------------------
-//       🔥 ENTER YOUR FIREBASE DETAILS HERE
-// ------------------------------------------------------------
+<!-- MANUAL RELAYS -->
+<div class="card">
+  <h3>Manual Relays</h3>
+  <button id="r1" class="btn off" onclick="toggleRelay('relay1')">Relay 1</button>
+  <button id="r2" class="btn off" onclick="toggleRelay('relay2')">Relay 2</button>
+  <button id="r3" class="btn off" onclick="toggleRelay('relay3')">Relay 3</button>
+</div>
+
+<!-- TIMER RELAY -->
+<div class="card">
+  <h3>Timer Relay</h3>
+  <label>Enter Time (ms)</label>
+  <input id="timerMs" type="number" placeholder="5000">
+
+  <button id="timerBtn" class="btn off" onclick="startTimed()">START</button>
+
+  <p id="timerInfo"></p>
+
+  <div class="progress">
+    <div id="timerBar" class="bar"></div>
+  </div>
+</div>
+
+<!-- SERVO -->
+<div class="card">
+  <h3>Servo Motor</h3>
+  Speed: <span id="speedText">5</span><br>
+  <input id="servoSpeed" type="range" min="1" max="20" value="5"
+         oninput="updateSpeed(this.value)">
+  <br><br>
+  <button id="servoBtn" class="btn off" onclick="runServo()">Run Servo</button>
+</div>
+
+<!-- FIREBASE SDK -->
+<script type="module">
+
+// 🔥 Firebase Modules
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, update, onValue }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+// 🔥 PUT YOUR FIREBASE CONFIG HERE
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_DOMAIN",
-    databaseURL: "YOUR_FIREBASE_DB_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_BUCKET",
-    messagingSenderId: "MSG_ID",
-    appId: "APP_ID"
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT"
 };
-// ------------------------------------------------------------
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// INIT
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-// 🔹 Toggle Tab
-function toggleTab(id) {
-    let x = document.getElementById(id);
-    x.style.display = (x.style.display === "block") ? "none" : "block";
-}
+// REALTIME LISTENER
+onValue(ref(db, "device"), snap => {
+  if (!snap.exists()) return;
+  let d = snap.val();
 
-// 🔹 Send ON/OFF Command
-function sendCommand(cmd) {
-    firebase.database().ref("AC/Command").set(cmd);
-}
+  // RELAYS
+  setBtn("r1", d.relay1);
+  setBtn("r2", d.relay2);
+  setBtn("r3", d.relay3);
 
-// 🔹 Add Timer
-function addTimer() {
-    let onTime = document.getElementById("onTime").value;
-    let offTime = document.getElementById("offTime").value;
+  // TIMER
+  if (d.timed?.state == 1) {
+    document.getElementById("timerBtn").className = "btn running";
+    document.getElementById("timerBtn").innerText = "RUNNING";
 
-    if (!onTime || !offTime) {
-        alert("Please select both times");
-        return;
-    }
+    let remaining = d.timed.end - Date.now();
+    if (remaining < 0) remaining = 0;
 
-    let id = Date.now();
-    firebase.database().ref("AC/Timers/" + id).set({
-        on: onTime,
-        off: offTime
-    });
+    let percent = ((d.timed.duration_ms - remaining) / d.timed.duration_ms) * 100;
+    document.getElementById("timerBar").style.width = percent + "%";
+    document.getElementById("timerInfo").innerText = "Remaining: " + remaining + " ms";
+  }
+  else {
+    document.getElementById("timerBtn").className = "btn off";
+    document.getElementById("timerBtn").innerText = "START";
+    document.getElementById("timerBar").style.width = "0%";
+    document.getElementById("timerInfo").innerText = "";
+  }
 
-    alert("Timer Added");
-}
+  // SERVO
+  if (d.servo_running == 1) {
+    document.getElementById("servoBtn").className = "btn running";
+    document.getElementById("servoBtn").innerText = "RUNNING";
+  } else {
+    document.getElementById("servoBtn").className = "btn off";
+    document.getElementById("servoBtn").innerText = "Run Servo";
+  }
+  document.getElementById("speedText").innerText = d.servo_speed;
+  document.getElementById("servoSpeed").value = d.servo_speed;
 
-// 🔹 Load Timers
-firebase.database().ref("AC/Timers").on("value", snap => {
-    let data = snap.val();
-    let html = "";
+  // SENSOR
+  document.getElementById("devstat").innerHTML =
+    d.device_online ? 
+      "<span class='status-ok'>Online</span>" :
+      "<span class='status-bad'>Offline</span>";
 
-    if (!data) {
-        html = "No timers saved";
-    } else {
-        for (let id in data) {
-            html += `<div class='card'>
-                <p>ON: ${data[id].on}</p>
-                <p>OFF: ${data[id].off}</p>
-                <button onclick="deleteTimer('${id}')">Delete</button>
-            </div>`;
-        }
-    }
+  document.getElementById("senstat").innerHTML =
+    d.sensor_ok ? 
+      "<span class='status-ok'>Sensor Connected</span>" :
+      "<span class='status-sensor'>Sensor Disconnected</span>";
 
-    document.getElementById("timerList").innerHTML = html;
+  document.getElementById("temp").innerText = d.sensor?.temp ?? "--";
+  document.getElementById("hum").innerText = d.sensor?.hum ?? "--";
+  document.getElementById("last").innerText = new Date(d.heartbeat).toLocaleTimeString();
 });
 
-// 🔹 Delete Timer
-function deleteTimer(id) {
-    firebase.database().ref("AC/Timers/" + id).remove();
+// BUTTON UI
+function setBtn(id, state) {
+  let b = document.getElementById(id);
+  b.className = state ? "btn on" : "btn off";
 }
 
-// 🔹 Read Temperature & Humidity
-firebase.database().ref("AC/Sensor").on("value", snap => {
-    let d = snap.val();
-    if (!d) return;
+// TOGGLE RELAY
+window.toggleRelay = function(name) {
+  update(ref(db, "device"), { [name]: null }); // ESP32 toggles itself
+}
 
-    document.getElementById("temp").textContent = d.temp ?? "--";
-    document.getElementById("hum").textContent = d.hum ?? "--";
+// START TIMER
+window.startTimed = function() {
+  let ms = parseInt(document.getElementById("timerMs").value);
+  if (!ms || ms <= 0) return alert("Invalid time");
 
-    document.getElementById("sensorStatus").innerHTML =
-        (d.connected ? "<span class='status-online'>Sensor Connected</span>"
-                     : "<span class='status-offline'>Sensor Disconnected</span>");
-});
+  update(ref(db, "device/timed"), {
+    state: 1,
+    duration_ms: ms,
+    end: Date.now() + ms
+  });
+}
 
-// 🔹 Device Online/Offline check
-firebase.database().ref("AC/Status").on("value", snap => {
-    let isOnline = snap.val();
-    document.getElementById("deviceStatus").innerHTML =
-        isOnline ? "<span class='status-online'>Online</span>"
-                 : "<span class='status-offline'>Offline</span>";
-});
+// SERVO SPEED
+window.updateSpeed = function(v) {
+  document.getElementById("speedText").innerText = v;
+  update(ref(db, "device"), { servo_speed: Number(v) });
+}
+
+// RUN SERVO
+window.runServo = function() {
+  update(ref(db, "device"), { servo_running: 1 });
+}
+
 </script>
-
 </body>
 </html>
