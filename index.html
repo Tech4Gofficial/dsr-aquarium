@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Relay Control</title>
+<title>Smart Device Controller</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -14,11 +14,19 @@
   }
 
   h2 {
+    margin-bottom: 10px;
+  }
+
+  .card {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 15px;
     margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
   }
 
   .relay-btn {
-    width: 140px;
+    width: 160px;
     padding: 18px;
     margin: 10px;
     border: none;
@@ -26,89 +34,171 @@
     font-size: 18px;
     cursor: pointer;
     color: white;
-    transition: 0.2s ease-in-out;
+    transition: 0.2s;
   }
 
   .on {
     background: #22c55e;
-    box-shadow: 0 0 10px #22c55e;
+    box-shadow: 0 0 8px #22c55e;
   }
 
   .off {
     background: #ef4444;
-    box-shadow: 0 0 10px #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+  }
+
+  .progress {
+    width: 100%;
+    height: 16px;
+    background: #ddd;
+    border-radius: 10px;
+    margin-top: 8px;
+  }
+
+  .bar {
+    width: 0%;
+    height: 100%;
+    background: #22c55e;
+    border-radius: 10px;
+  }
+
+  .status {
+    font-size: 18px;
+    margin: 3px;
   }
 </style>
 </head>
 <body>
 
-<h2>Device Relay Controller</h2>
+<h2>Smart Device Controller</h2>
 
-<button id="b1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button>
-<br>
-<button id="b2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button>
-<br>
-<button id="b3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button>
+<!-- RELAY CARD -->
+<div class="card">
+  <h3>Relays</h3>
 
-<!-- Firebase SDK -->
+  <button id="b1" class="relay-btn off" onclick="toggleRelay('relay1')">Relay 1</button><br>
+  <button id="b2" class="relay-btn off" onclick="toggleRelay('relay2')">Relay 2</button><br>
+  <button id="b3" class="relay-btn off" onclick="toggleRelay('relay3')">Relay 3</button>
+</div>
+
+<!-- TEMPERATURE CARD -->
+<div class="card">
+  <h3>Temperature</h3>
+  <p class="status">Temp: <span id="temp">--</span> °C</p>
+  <p class="status">Humidity: <span id="hum">--</span> %</p>
+  <p class="status">Last Update: <span id="last">--</span></p>
+</div>
+
+<!-- TIMER CARD -->
+<div class="card">
+  <h3>Timed Relay</h3>
+
+  <input type="number" id="ms" placeholder="5000" style="padding:8px;width:150px;"> ms<br><br>
+
+  <button id="timerBtn" class="relay-btn off" onclick="startTimer()">Start Timer</button>
+  
+  <p id="timerInfo"></p>
+  
+  <div class="progress">
+    <div id="bar" class="bar"></div>
+  </div>
+</div>
+
+<!-- FIREBASE LOGIC -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
   import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
 
-  // 🔥 YOUR FIREBASE CONFIG HERE
+  // YOUR FIREBASE CONFIG
   const firebaseConfig = {
-    apiKey: "YOUR-API-KEY",
-    authDomain: "YOUR-PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR-PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR-PROJECT-ID",
-    storageBucket: "YOUR-PROJECT.appspot.com",
-    messagingSenderId: "123456",
-    appId: "APP-ID"
+    apiKey: "YOUR-KEY",
+    authDomain: "YOUR.firebaseapp.com",
+    databaseURL: "https://YOUR-default-rtdb.firebaseio.com",
+    projectId: "YOUR-ID",
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // ---------------------------------------------------
-  //  REALTIME UPDATES FROM FIREBASE
-  // ---------------------------------------------------
-  const deviceRef = ref(db, "device");
+  const dev = ref(db, "device");
 
-  onValue(deviceRef, (snapshot) => {
-    let data = snapshot.val();
-    if (!data) return;
+  // ---------------------------
+  // REALTIME LISTENER
+  // ---------------------------
+  onValue(dev, snap => {
+    let d = snap.val();
+    if (!d) return;
 
-    setButtonState("b1", data.relay1);
-    setButtonState("b2", data.relay2);
-    setButtonState("b3", data.relay3);
+    // Relays
+    setBtn("b1", d.relay1);
+    setBtn("b2", d.relay2);
+    setBtn("b3", d.relay3);
+
+    // Temperature
+    document.getElementById("temp").innerText = d.temp ?? "--";
+    document.getElementById("hum").innerText = d.humidity ?? "--";
+    if (d.last_update)
+      document.getElementById("last").innerText = new Date(d.last_update).toLocaleTimeString();
+
+    // Timer
+    if (d.timer?.state == 1) {
+      let remain = d.timer.end - Date.now();
+      if (remain < 0) remain = 0;
+
+      let pct = ((d.timer.duration - remain) / d.timer.duration) * 100;
+
+      document.getElementById("timerBtn").innerText = "RUNNING";
+      document.getElementById("timerBtn").classList = "relay-btn on";
+      document.getElementById("timerInfo").innerText = "Auto OFF in " + remain + " ms";
+      document.getElementById("bar").style.width = pct + "%";
+    } else {
+      document.getElementById("timerBtn").innerText = "Start Timer";
+      document.getElementById("timerBtn").classList = "relay-btn off";
+      document.getElementById("timerInfo").innerText = "";
+      document.getElementById("bar").style.width = "0%";
+    }
   });
 
-  // Change button UI
-  function setButtonState(id, state) {
-    let btn = document.getElementById(id);
-
-    if (state == 1) {
-      btn.classList.remove("off");
-      btn.classList.add("on");
+  // UI helper
+  function setBtn(id, st) {
+    let b = document.getElementById(id);
+    if (st == 1) {
+      b.classList.remove("off");
+      b.classList.add("on");
     } else {
-      btn.classList.remove("on");
-      btn.classList.add("off");
+      b.classList.remove("on");
+      b.classList.add("off");
     }
   }
 
-  // ---------------------------------------------------
-  //  SAFE TOGGLE WITHOUT DELETING KEYS
-  // ---------------------------------------------------
+  // ---------------------------
+  // SAFE RELAY TOGGLE
+  // ---------------------------
   window.toggleRelay = function(name) {
-    let btnId =
-      name === "relay1" ? "b1" :
-      name === "relay2" ? "b2" :
-                          "b3";
+    let btn =
+      name === "relay1" ? b1 :
+      name === "relay2" ? b2 : b3;
 
-    let btn = document.getElementById(btnId);
-    let isOn = btn.classList.contains("on"); // current state
+    let isOn = btn.classList.contains("on");
 
     update(ref(db, "device"), { [name]: isOn ? 0 : 1 });
+  };
+
+  // ---------------------------
+  // TIMER START
+  // ---------------------------
+  window.startTimer = function() {
+    let ms = Number(document.getElementById("ms").value);
+    if (!ms || ms < 100) {
+      alert("Enter minimum 100 ms");
+      return;
+    }
+
+    update(ref(db, "device/timer"), {
+      state: 1,
+      duration: ms,
+      end: Date.now() + ms
+    });
   };
 
 </script>
