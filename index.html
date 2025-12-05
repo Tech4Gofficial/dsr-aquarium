@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aquarium Controller Dashboard</title>
+<style>
+body {
+  font-family: Arial;
+  margin: 15px;
+}
+.card {
+  border: 1px solid #888;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+.btn {
+  width: 140px;
+  padding: 10px;
+  margin: 6px;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+}
+.on { background: #2e7d32; }
+.off { background: #c62828; }
+.running { background: #fb8c00; }
+.progress {
+  width: 100%; height: 18px;
+  background: #ddd; border-radius: 9px;
+}
+.bar { height: 100%; width: 0%; background: #2e7d32; }
+
+.status-ok { color: green; font-weight: bold; }
+.status-off { color: red; font-weight: bold; }
+.status-sensor { color: orange; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h2>Aquarium Controller – Cloud Dashboard</h2>
+
+<!-- Firebase Login -->
+<div class="card">
+  <h3>Login</h3>
+  <input id="email" type="text" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <button onclick="login()">Login</button>
+  <p id="loginStatus"></p>
+</div>
+
+<!-- MAIN UI (hidden until login) -->
+<div id="mainUI" style="display:none">
+
+<!-- Relays -->
+<div class="card">
+  <h3>Manual Relays</h3>
+  <button id="b1" class="btn off" onclick="toggleRelay('relay1')">Relay 1</button>
+  <button id="b2" class="btn off" onclick="toggleRelay('relay2')">Relay 2</button>
+  <button id="b3" class="btn off" onclick="toggleRelay('relay3')">Relay 3</button>
+</div>
+
+<!-- Timed Relay -->
+<div class="card">
+  <h3>Timed Relay</h3>
+  <input id="ms" type="number" placeholder="5000"> ms
+  <button id="bt" class="btn off" onclick="startTimed()">Start</button>
+  <p id="tinfo"></p>
+  <div class="progress"><div id="bar" class="bar"></div></div>
+</div>
+
+<!-- Servo -->
+<div class="card">
+  <h3>Servo Control</h3>
+  Speed: <span id="speedText">5</span><br>
+  <input id="servoSpeed" type="range" min="1" max="20" value="5"
+         oninput="updateSpeed(this.value)">
+  <br><br>
+  <button id="servoBtn" class="btn off" onclick="runServo()">Run Servo</button>
+</div>
+
+<!-- Sensor -->
+<div class="card">
+  <h3>Sensor</h3>
+  <p>Device: <span id="devstat"></span></p>
+  <p>Sensor: <span id="senstat"></span></p>
+  <p>Temperature: <span id="temp"></span> °C</p>
+  <p>Humidity: <span id="hum"></span> %</p>
+  <p>Last Update: <span id="last"></span></p>
+</div>
+
+</div> <!-- mainUI end -->
+
+<script type="module">
+
+// ---------------- FIREBASE SETUP ----------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, update, onValue } 
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword } 
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_FIREBASE_PROJECT_ID.firebaseapp.com",
+  databaseURL: "https://YOUR_FIREBASE_DB_URL",
+  projectId: "YOUR_FIREBASE_PROJECT_ID",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth();
+
+// ---------------- LOGIN ----------------------
+function login() {
+  let email = document.getElementById("email").value;
+  let pass = document.getElementById("password").value;
+
+  signInWithEmailAndPassword(auth, email, pass)
+    .then(() => {
+      document.getElementById("loginStatus").innerText = "Login successful!";
+      document.getElementById("mainUI").style.display = "block";
+    })
+    .catch(err => {
+      document.getElementById("loginStatus").innerText = err.message;
+    });
+}
+window.login = login;
+
+// ------------- REALTIME LISTENER ----------------------
+onValue(ref(db, "device"), snap => {
+  if (!snap.exists()) return;
+
+  let d = snap.val();
+
+  // relay buttons
+  setButton("b1", d.relay1);
+  setButton("b2", d.relay2);
+  setButton("b3", d.relay3);
+
+  // timed relay
+  if (d.timed?.state == 1) {
+    document.getElementById("bt").className = "btn running";
+    document.getElementById("bt").innerText = "RUNNING...";
+    let rem = d.timed.end - Date.now();
+    let dur = d.timed.duration_ms;
+    if (rem < 0) rem = 0;
+
+    document.getElementById("tinfo").innerText = 
+      "Auto-off in " + rem + " ms";
+
+    let pct = ((dur - rem) / dur) * 100;
+    document.getElementById("bar").style.width = pct + "%";
+
+  } else {
+    document.getElementById("bt").className = "btn off";
+    document.getElementById("bt").innerText = "Start";
+    document.getElementById("tinfo").innerText = "";
+    document.getElementById("bar").style.width = "0%";
+  }
+
+  // servo
+  if (d.servo_running == 1) {
+    document.getElementById("servoBtn").className = "btn running";
+    document.getElementById("servoBtn").innerText = "RUNNING...";
+  } else {
+    document.getElementById("servoBtn").className = "btn off";
+    document.getElementById("servoBtn").innerText = "Run Servo";
+  }
+
+  document.getElementById("servoSpeed").value = d.servo_speed ?? 5;
+  document.getElementById("speedText").innerText = d.servo_speed ?? 5;
+
+  // sensor
+  document.getElementById("devstat").innerText =
+    d.device_online ? "Online" : "Offline";
+  document.getElementById("devstat").className =
+    d.device_online ? "status-ok" : "status-off";
+
+  document.getElementById("senstat").innerText =
+    d.sensor_ok ? "Sensor OK" : "Disconnected";
+  document.getElementById("senstat").className =
+    d.sensor_ok ? "status-ok" : "status-sensor";
+
+  document.getElementById("temp").innerText = d.sensor?.temp ?? "--";
+  document.getElementById("hum").innerText = d.sensor?.hum ?? "--";
+  document.getElementById("last").innerText = new Date(d.heartbeat).toLocaleTimeString();
+});
+
+// ---------------- BUTTON UI HELPER ----------------------
+function setButton(id, state) {
+  let b = document.getElementById(id);
+  if (!b) return;
+
+  if (state)
+    b.className = "btn on";
+  else
+    b.className = "btn off";
+}
+
+// ---------------- RELAY CONTROL -------------------------
+function toggleRelay(name) {
+  let path = {};
+  // toggle means set the opposite (actual value fetched in realtime)
+  path[name] = (Math.random() < 0.5) ? 1 : 0; // overwritten in ESP patch
+  update(ref(db, "device"), path);
+}
+window.toggleRelay = toggleRelay;
+
+// ---------------- TIMED RELAY -------------------------
+function startTimed() {
+  let ms = parseInt(document.getElementById("ms").value);
+  if (!ms || ms <= 0) {
+    alert("Enter valid ms");
+    return;
+  }
+  update(ref(db, "device/timed"), {
+    state: 1,
+    duration_ms: ms,
+    end: Date.now() + ms
+  });
+}
+window.startTimed = startTimed;
+
+// ---------------- SERVO SPEED -------------------------
+function updateSpeed(v) {
+  document.getElementById("speedText").innerText = v;
+  update(ref(db, "device"), { servo_speed: Number(v) });
+}
+window.updateSpeed = updateSpeed;
+
+// ---------------- RUN SERVO -------------------------
+function runServo() {
+  update(ref(db, "device"), { servo_running: 1 });
+}
+window.runServo = runServo;
+
+</script>
+
+</body>
+</html>
